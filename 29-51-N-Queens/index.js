@@ -50,3 +50,5 @@ const solveNQueens = function(n) {
 };
 
 console.log(solveNQueens(4));
+
+console.log(global);
