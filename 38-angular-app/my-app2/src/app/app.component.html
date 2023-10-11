@@ -1,0 +1,18 @@
+<!-- <button (click)="sendGetRequest()">Send GET Request</button> -->
+<button (click)="sendGetRequest()">GET Next</button>
+<div *ngFor="let dog of dogs">
+  <h1>{{ dog.attributes.name }}</h1>
+  <p>{{ dog.attributes.description }}</p>
+  <ul>
+    <li>Life Span: {{ dog.attributes.life.min }} - {{ dog.attributes.life.max }} years</li>
+    <li>Male Weight: {{ dog.attributes.male_weight.min }} - {{ dog.attributes.male_weight.max }} kg</li>
+    <li>Female Weight: {{ dog.attributes.female_weight.min }} - {{ dog.attributes.female_weight.max }} kg</li>
+    <li>Hypoallergenic: {{ dog.attributes.hypoallergenic ? 'Yes' : 'No' }}</li>
+  </ul>
+</div>
+
+<div>
+
+
+</div>
+ 
