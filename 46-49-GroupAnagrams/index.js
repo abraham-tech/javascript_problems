@@ -9,5 +9,4 @@ const groupAnagrams = function(stars) {
     });
     return Object.values(mymap);
 }
-
 console.log(groupAnagrams(["eat", "tea","tan","ate","nat","bat"]));
