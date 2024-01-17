@@ -4,18 +4,16 @@ function LinkedListNode(val){
 };
 
 
-var hasCycle = function(head){
-    if(head === undefined){
-        return false;
-    }
+const hasCycle = function(head){
+    if(!head) return false;
 
     let fast = head;
     let slow = head;
 
     while(fast){
-        if(fast.next === null){
+        if(!fast.next) {
             return false;
-        }else{
+        }else {
             fast = fast.next.next;
             slow = slow.next;
             if(fast === slow){
