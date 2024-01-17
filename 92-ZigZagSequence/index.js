@@ -1,6 +1,6 @@
 function findZigZagSequence(a, n) {
     a.sort((a, b) => a - b);
-    var mid = Math.floor((n)/2);
+    let mid = Math.floor((n)/2);
     [a[mid], a[n-1]] = [a[n-1], a[mid]];
 
     var st = mid + 1;
