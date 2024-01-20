@@ -1,0 +1,15 @@
+{
+  "name": "01-js-errorhandling",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.4.9",
+    "typescript": "^5.1.6"
+  },
+  "author": "abraham",
+  "license": "ISC"
+}
