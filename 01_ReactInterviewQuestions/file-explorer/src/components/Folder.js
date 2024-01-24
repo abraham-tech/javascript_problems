@@ -3,7 +3,6 @@ import explorer from "../data/folderData";
 
 const Folder = ({explorer}) => {
     const [expand, setExpand] = useState(false);
-    console.log(explorer);
     if(explorer.isFolder){
         return (
             <div style={{marginTop: "5px"}}>
@@ -11,12 +10,13 @@ const Folder = ({explorer}) => {
                 <div onClick={() => setExpand(!expand)} className="folder">
                     <span>📁 {explorer.name}</span>
                 </div>
-
+                <div style={{ display: expand? "block": "none", paddingLeft:25 }}>
                 {explorer.items.map(exp => {
                     return (
                         <Folder key={exp.id} explorer={exp}/>
                     )
                 })}
+                </div>
             </div>
         )
     } else {
