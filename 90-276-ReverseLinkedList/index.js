@@ -1,6 +1,6 @@
-function LinkedListNode(val, next){
-    this.val = val === undefined ? 0 : val;
-    this.next = next === null? null : next;
+function LinkedListNode(val = 0, next = null){
+    this.val = val;
+    this.next = next;
 }
 
 let reverseLinkedList = function(head){

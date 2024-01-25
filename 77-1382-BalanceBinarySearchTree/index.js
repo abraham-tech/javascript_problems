@@ -1,7 +1,7 @@
-function TreeNode(val, left, right){
-    this.val = val === undefined? 0 : val;
-    this.left = left === undefined? null : left;
-    this.right = right === undefined? null : right;
+function TreeNode(val = 0, left = null, right = null){
+    this.val = val;
+    this.left = left;
+    this.right = right;
 }
 
 const balanceBST = function(root){
