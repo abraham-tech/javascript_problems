@@ -4,16 +4,18 @@ import {useEffect, useState} from 'react';
 function App() {
     const [products, setProducts] = useState([]);
     const [page, setPage] = useState(1);
-    const PAGE = [...Array(products.length / 10 )];
+    const [totalPages, setTotalPages] = useState(0);
+    const PAGE = [...Array( totalPages )];
     const fetchProducts = async () => {
         try {
-            const response = await fetch('https://dummyjson.com/products?limit=100');
+            const response = await fetch(`https://dummyjson.com/products?limit=10&skip=${page * 10 -10}`);
             const data = await response.json();
             if (data && data.products) {
                 setProducts(data.products);
-
+                setTotalPages(data.total / 10);
+                console.log("Total",  data.total)
             }
-            ;
+
 
         } catch (error) {
             console.error(error);
@@ -22,8 +24,8 @@ function App() {
 
     useEffect(() => {
         fetchProducts();
-    }, [])
-
+    }, [page])
+    console.log(products)
     if(products.length <= 0){
         return (
             <p>No products to display</p>
@@ -32,7 +34,7 @@ function App() {
     return (
         <>
         <div className="products">
-            {products.slice(page * 10 - 10, page * 10).map((product, i) => {
+            {products.map((product, i) => {
                 return (
                     <span className="products__single" key={i}>
                         <img src={product.thumbnail} alt="logo"/>
