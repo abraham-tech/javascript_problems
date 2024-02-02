@@ -1,0 +1,116 @@
+# Use the Python 3.11 image as the base image for this pipeline.
+image: python:3.11
+
+# Define the stages of the pipeline in the order they should run.
+stages:
+  - requirements
+  - check
+  - test
+  - build
+  - staging
+  - production
+
+# The requirements job sets up the Python virtual environment and installs necessary dependencies.
+Requirements:
+  stage: requirements
+  # Cache the virtual environment to speed up subsequent jobs.
+  cache:
+    key: venv
+    paths:
+      - venv
+  script:
+    - python -m venv venv
+    - venv/bin/pip install --upgrade --requirement requirements.txt
+    - make requirements
+
+# The check job performs static code analysis and linting.
+Check:
+  stage: check
+  needs: ["Requirements"]
+  cache:
+    policy: pull  
+    key: venv
+    paths:
+      - venv
+  # Setup necessary utilities for the job.
+  before_script:
+    - apt-get update -y
+    - apt-get install -qq zip
+  script:
+    - source venv/bin/activate
+    - make check
+    - make lint
+
+# The test job runs the project's tests.
+Test:
+  stage: test
+  needs: ["Check"]
+  cache:
+    policy: pull  
+    key: venv
+    paths:
+      - venv
+  script:
+    - source venv/bin/activate
+    - make test
+
+# The build job creates the deployable artifact.
+Build:
+  stage: build
+  needs: ["Test"]
+  before_script:
+    - apt-get update -y
+    - apt-get install -qq zip
+  script:
+    - make build
+  # Store the lambda.zip as an artifact to be used in subsequent stages.
+  artifacts:
+    paths:
+      - ./lambda.zip
+
+# The staging job deploys the code to the staging environment.
+Staging:
+  stage: staging
+  environment: Staging
+  needs: ["Build"]
+  # Define environment variables for AWS and the function name.
+  variables:
+    AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    FUNCTION: $FUNCTION_NAME
+  cache:
+    policy: pull  
+    key: venv
+    paths:
+      - venv
+  script:
+    - source venv/bin/activate
+    - make deploy PLATFORM="GitLab CI" FUNCTION=$FUNCTION VERSION=$CI_COMMIT_SHA BUILD_NUMBER=$CI_PIPELINE_ID
+    # Test the deployed code in the staging environment.
+    - make testdeployment URL=$CI_ENVIRONMENT_URL VERSION=$CI_COMMIT_SHA
+  dependencies:
+    - Build
+
+# The production job deploys the code to the production environment.
+Production:
+  stage: production
+  environment: Production
+  needs: ["Build","Staging"]
+  variables:
+    AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    FUNCTION: $FUNCTION_NAME
+  cache:
+    policy: pull  
+    key: venv
+    paths:
+      - venv
+  script:
+    - source venv/bin/activate
+    - make deploy PLATFORM="GitLab CI" FUNCTION=$FUNCTION VERSION=$CI_COMMIT_SHA BUILD_NUMBER=$CI_PIPELINE_ID
+    # Test the deployed code in the production environment.
+    - make testdeployment URL=$CI_ENVIRONMENT_URL VERSION=$CI_COMMIT_SHA
+  dependencies:
+    - Build

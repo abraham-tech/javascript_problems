@@ -1,0 +1,218 @@
+Description: An EC2 instance running TeamCity Server as a Docker container
+
+Parameters:
+  InstanceType:
+    Type: String
+    Description: The size to use for the EC2 instance
+    Default: t3.medium
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+
+  Profile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Path: /
+      Roles: [!Ref Role]
+
+  SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Allow TCP traffic on port 80
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+
+  Server:
+    Type: AWS::EC2::Instance
+
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          application_installation:
+            - install_cfn
+            - install_apps
+        install_cfn:
+          files:
+            /opt/teamcity/docker-compose.yml:
+              content: |
+                version: '3.1'
+
+                services:
+                  server:
+                    image: jetbrains/teamcity-server
+                    ports:
+                      - "80:8111"
+                    volumes:
+                      - teamcity_data:/data/teamcity_server/datadir
+                      - teamcity_logs:/opt/teamcity/logs
+
+                  agent-1:
+                    image: jetbrains/teamcity-agent
+                    privileged: true
+                    environment:
+                      - SERVER_URL=http://server:8111
+                      - AGENT_NAME=agent-1
+
+                  agent-2:
+                    image: jetbrains/teamcity-agent
+                    privileged: true
+                    environment:
+                      - SERVER_URL=http://server:8111
+                      - AGENT_NAME=agent-2
+
+                volumes:
+                  teamcity_data:
+                  teamcity_logs:
+              mode: '000400'
+              owner: root
+              group: root            
+
+
+
+            /etc/systemd/system/ci.service:
+              content: |
+                [Unit]
+                Description=ci
+                [Service]
+                ExecStart=/usr/bin/docker compose -f /opt/teamcity/docker-compose.yml up -d
+                Restart=on-failure
+                [Install]
+                WantedBy=multi-user.target
+              mode: '000400'
+              owner: root
+              group: root            
+
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root            
+            
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.Server.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v
+                      --stack ${AWS::StackName}
+                      --resource Server
+                      --configsets application_installation
+                      --region ${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
+          
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: 'true'
+                ensureRunning: 'true'
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+        
+        install_apps:
+          packages:
+            yum:
+              docker: []
+          services:
+            sysvinit:
+              docker:
+                enabled: 'true'
+                ensureRunning: 'true'
+
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-ebs}}"
+      IamInstanceProfile: !Ref Profile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: '100'
+            DeleteOnTermination: 'true'
+            Encrypted: 'true'
+      SecurityGroups:
+        - !Ref SecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}
+
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            exec > >(tee /var/log/user-data.log) 2>&1
+
+            yum update -y aws-cfn-bootstrap
+            
+            /opt/aws/bin/cfn-init -v \
+              --stack ${AWS::StackName} \
+              --region ${AWS::Region} \
+              --resource Server \
+              --configsets application_installation
+
+            systemctl daemon-reload
+            systemctl enable ci.service
+
+            # Install docker-compose
+            wget https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)
+            mv docker-compose-$(uname -s)-$(uname -m) /usr/libexec/docker/cli-plugins/docker-compose
+            chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+            # Start TeamCity Server
+            docker compose -f /opt/teamcity/docker-compose.yml up -d
+
+            # Install AWS CLI
+            for agent in "teamcity-agent-2-1" "teamcity-agent-1-1"; do
+                docker exec -u root $agent apt update -y
+                docker exec -u root $agent apt install -y zip python3 python3-venv python3-pip
+                docker exec -u root $agent python3 --version
+                docker exec -u root $agent curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                docker exec -u root $agent unzip awscliv2.zip
+                docker exec -u root $agent ./aws/install
+                docker exec -u root $agent python3 --version && pip3 --version && aws --version
+            done
+
+            /opt/aws/bin/cfn-signal -e $? \
+              --stack ${AWS::StackName} \
+              --region ${AWS::Region} \
+              --resource Server
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref Server
+
+Outputs:
+  URL:
+    Value: !Sub 'http://${Server.PublicDnsName}/'
+    Description: Application URL
