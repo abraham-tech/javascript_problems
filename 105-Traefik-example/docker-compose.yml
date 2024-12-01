@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  traefik:
+    image: traefik:v2.10  # Specify the Traefik version
+    command:
+      - "--api.insecure=true"             # Enable Traefik dashboard (for testing)
+      - "--providers.docker=true"         # Enable Docker provider to discover services
+      - "--entrypoints.web.address=:80"   # Create an entrypoint for HTTP traffic on port 80
+    ports:
+      - "80:80"       # Expose HTTP traffic
+      - "8080:8080"   # Expose Traefik dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"  # Allow Traefik to interact with Docker API
+    restart: always
+
+  whoami:
+    image: traefik/whoami               # A small service that responds with its container name
+    labels:
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"  # Routing rule
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"  # Internal service port
+    restart: always
+
+  frontend:
+    image: nginx:alpine                  # Use the lightweight Nginx image
+    labels:
+      - "traefik.http.routers.frontend.rule=Host(`frontend.localhost`)"  # Routing rule
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"    # Internal service port
+    restart: always
