@@ -1,5 +1,6 @@
 # Understanding GRPC communication 
 
+- GRPC is a type of RPC developed by Google, it is mainly used for interservice communication. 
 - Client Stub: Converts local procedure calls into RPC requests.
 - Server Stub: Receives RPC requests and invokes the actual function.
 - Transport Mechanism: Handles message passing (e.g., HTTP, TCP).
